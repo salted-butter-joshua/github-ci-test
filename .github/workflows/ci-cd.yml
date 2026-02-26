@@ -1,0 +1,45 @@
+name: 代码验证与GHCR镜像构建
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  code-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 pytest
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: 代码格式验证
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+  build-image:
+    needs: code-verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+      
+      - name: 登录 GHCR（使用自定义的 ACTION_SECRET）
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}  # 你的 GitHub 用户名，也可以写死，比如 "your-github-username"
+          password: ${{ secrets.ACTION_SECRET }}  # 替换为你配置的 Secret 名称
+      
+      - name: 构建并推送镜像到 GHCR
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          # 注意替换成你的 GitHub 用户名和镜像名
+          tags: ghcr.io/salted-butter-joshua/github-ci-cd:latest
